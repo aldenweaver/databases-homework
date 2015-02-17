@@ -1,0 +1,199 @@
+package simpledb;
+
+import java.io.*;
+import java.util.*;
+
+import simpledb.HeapPage.HPIterator;
+
+/**
+ * HeapFile is an implementation of a DbFile that stores a collection of tuples
+ * in no particular order. Tuples are stored on pages, each of which is a fixed
+ * size, and the file is simply a collection of those pages. HeapFile works
+ * closely with HeapPage. The format of HeapPages is described in the HeapPage
+ * constructor.
+ * 
+ * @see simpledb.HeapPage#HeapPage
+ * @author Sam Madden
+ */
+public class HeapFile implements DbFile {
+	
+	public File file;
+	public TupleDesc tupleDesc;
+	public Page[] pages;
+	public BufferPool buffPool;
+
+    /**
+     * Constructs a heap file backed by the specified file.
+     * 
+     * @param f
+     *            the file that stores the on-disk backing store for this heap
+     *            file.
+     */
+    public HeapFile(File f, TupleDesc td) {
+        file = f;
+        tupleDesc = td;
+        buffPool = Database.getBufferPool();
+        pages = buffPool.bufferPool;
+    }
+    
+
+    public class HFIterator implements DbFileIterator {
+    	HPIterator pageIterator;
+    	int nextPageIndex;
+    	int nextTupleIndex;
+    	boolean isOpen;
+    	
+		public HFIterator() {
+			isOpen = false;
+			nextTupleIndex = -1;
+			nextPageIndex = -1;
+			
+	    	for(int i = 0; i < pages.length; i++) {
+	    		HeapPage currentPage = (HeapPage) pages[i];
+	    		pageIterator = (HPIterator) currentPage.iterator();
+	    		if (pages[i] != null) {
+	    			nextPageIndex = i;
+	    			break;
+	    		}
+	    	}
+		}
+		
+		public boolean hasNext() {
+			if (nextPageIndex == -1) {
+				return false;
+			}
+			if (!isOpen) {
+				System.out.println("File is closed.");
+				return false;
+			}
+			
+			return true;
+		}
+		
+		public Tuple next() throws NoSuchElementException {
+			if (!hasNext()) {
+				throw new NoSuchElementException();
+			}
+			
+			HeapPage currentPage = (HeapPage) pages[nextPageIndex];
+			Tuple[] currentTuples = currentPage.tuples;
+			Tuple toReturn = currentTuples[nextTupleIndex];
+			
+			for(int i = 0; i < currentTuples.length; i++) {
+	    		if (currentTuples[i] != null) {
+	    			nextTupleIndex = i;
+	    			break;
+	    		}
+			}
+			
+			// If didn't find another tuple on this page, 
+			// increment the page index and reset the tuple index,
+			// then call next() again to search the next page
+			nextPageIndex++;
+			nextTupleIndex = -1; 
+			next();
+			
+			return toReturn;
+		}
+	
+		public void open(){
+			isOpen = true;
+		}
+		
+		public void close(){
+			isOpen = false;
+		}
+		
+		public void rewind(){
+			throw new UnsupportedOperationException("HFIterator's rewind() is not implemented.");
+		}
+		
+		public void remove(){
+			throw new UnsupportedOperationException("HFIterator's remove() is not implemented.");
+		}
+	    	
+	  }
+
+    /**
+     * Returns the File backing this HeapFile on disk.
+     * 
+     * @return the File backing this HeapFile on disk.
+     */
+    public File getFile() {
+        return file;
+    }
+
+    /**
+     * Returns an ID uniquely identifying this HeapFile. Implementation note:
+     * you will need to generate this tableid somewhere ensure that each
+     * HeapFile has a "unique id," and that you always return the same value for
+     * a particular HeapFile. We suggest hashing the absolute file name of the
+     * file underlying the heapfile, i.e. f.getAbsoluteFile().hashCode().
+     * 
+     * @return an ID uniquely identifying this HeapFile.
+     */
+    public int getId() {
+        return file.getAbsoluteFile().hashCode();
+    }
+
+    /**
+     * Returns the TupleDesc of the table stored in this DbFile.
+     * 
+     * @return TupleDesc of this DbFile.
+     */
+    public TupleDesc getTupleDesc() {
+        return tupleDesc;
+    }
+    
+    
+    // see DbFile.java for javadocs
+    public Page readPage(PageId pid) throws NoSuchElementException {
+    	if (buffPool.pageInBuffer(pid)) {
+    		return buffPool.pageFromBuffer(pid);
+    	} throw new NoSuchElementException();
+    }
+
+    
+    // see DbFile.java for javadocs
+    public void writePage(Page page) throws IOException {
+        // some code goes here
+        // not necessary for lab1
+    }
+    
+
+    /**
+     * Returns the number of pages in this HeapFile.
+     */
+    public int numPages() {
+    	int count = 1;
+    	for(int i = 0; i < pages.length; i++) {
+    		if (pages[i] != null) {
+    			count++;
+    		}
+    	}
+        return count;
+    }
+
+    // see DbFile.java for javadocs
+    public ArrayList<Page> insertTuple(TransactionId tid, Tuple t)
+            throws DbException, IOException, TransactionAbortedException {
+        // some code goes here
+        return null;
+        // not necessary for lab1
+    }
+
+    // see DbFile.java for javadocs
+    public ArrayList<Page> deleteTuple(TransactionId tid, Tuple t) throws DbException,
+            TransactionAbortedException {
+        // some code goes here
+        return null;
+        // not necessary for lab1
+    }
+
+    // see DbFile.java for javadocs
+    public DbFileIterator iterator(TransactionId tid) {
+        return new HFIterator();
+    }
+
+}
+
